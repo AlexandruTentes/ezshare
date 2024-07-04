@@ -29,6 +29,13 @@ const debug = false;
 
 const isDirectory = async (filePath) => (await fs.lstat(filePath)).isDirectory();
 
+const isPrivateIP = (ip) => {
+  const parts = ip.split('.').map(Number);
+  return (parts[0] === 10) ||
+         (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+         (parts[0] === 192 && parts[1] === 168);
+};
+
 module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressionLevel, devMode }) => {
   // console.log({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressionLevel });
   const sharedPath = sharedPathIn || process.cwd();
@@ -206,14 +213,18 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
 
   app.listen(port, () => {
     const interfaces = os.networkInterfaces();
-    const urls = flatMap(Object.values(interfaces), (addresses) => addresses).filter(({ family, address }) => family === 'IPv4' && address !== '127.0.0.1').map(({ address }) => `http://${address}:${port}/`);
+    const urls = flatMap(Object.entries(interfaces), ([name, addresses]) => {
+      if (name !== 'Ethernet' && name !== 'Wireless' && name !== 'Wifi') {
+          return [];
+      }
+      return addresses;
+  }).filter(({ family, address }) => family === 'IPv4' && address !== '127.0.0.1' && isPrivateIP(address))
+  .map(({ address }) => `http://${address}:${port}/`);
     if (urls.length === 0) return;
     console.log('Server listening:');
     urls.forEach((url) => {
-      console.log();
-      console.log(`Scan this QR code on your phone or enter ${url}`);
-      console.log();
-      qrcode.generate(url);
+      console.log(`App url: ${url}`);
+      //qrcode.generate(url);
     });
   });
 

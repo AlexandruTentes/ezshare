@@ -182,8 +182,16 @@ const Browser = () => {
     loadCurrentPath();
   }
 
-  const dirs = currentDirFiles.files.filter(f => f.isDir);
-  const nonDirs = currentDirFiles.files.filter(f => !f.isDir);
+  //Failover in case directory does not exist at all
+  let dirs = { map(){} };
+  let nonDirs = { map(){}};
+  if(currentDirFiles.files) 
+  {
+    dirs = currentDirFiles.files.filter(f => f.isDir);
+    nonDirs = currentDirFiles.files.filter(f => !f.isDir);
+  }
+  
+
 
   async function onPaste(e) {
     e.preventDefault();
