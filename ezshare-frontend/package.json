@@ -5,6 +5,7 @@
   "dependencies": {
     "@vitejs/plugin-react": "^4.2.1",
     "axios": "^0.28.0",
+    "crypto-js": "^4.2.0",
     "fontsource-roboto": "^3.0.3",
     "framer-motion": "^1.10.3",
     "react": "^16.13.1",

@@ -21,6 +21,10 @@
     "app.js"
   ],
   "pkg": {
+    "scripts": "index.js",
+    "targets": [
+      "node14-win-x64"
+    ],
     "assets": [
       "ezshare-frontend/dist/**"
     ]
@@ -30,8 +34,10 @@
     "body-parser": "^1.19.0",
     "clipboardy": "^2.3.0",
     "content-disposition": "^0.5.3",
-    "express": "^4.17.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "express-async-handler": "^1.1.4",
+    "express-session": "^1.18.0",
     "filenamify": "^4.2.0",
     "formidable": "^1.2.2",
     "fs-extra": "^8.1.0",
@@ -39,6 +45,7 @@
     "lodash": "^4.17.15",
     "meow": "^6.1.0",
     "morgan": "^1.9.1",
+    "mysql2": "^3.10.2",
     "p-map": "^4.0.0",
     "qrcode-terminal": "^0.12.0",
     "range-parser": "^1.2.1"

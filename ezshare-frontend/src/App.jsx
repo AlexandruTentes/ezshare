@@ -8,7 +8,7 @@ import { useDropzone } from 'react-dropzone';
 import Swal from 'sweetalert2';
 import Clipboard from 'react-clipboard.js';
 import { motion, AnimatePresence } from 'framer-motion';
-
+import CryptoJS from 'crypto-js';
 import { CircularProgressbar } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 
@@ -31,6 +31,8 @@ const colorLink2 = '#ffa62b';
 const boxBackgroundColor = '#fff';
 const headingBackgroundColor = '#16697a';
 const iconColor = '#ffa62b'; // 'rgba(0,0,0,0.3)'
+const greenColor = '#90D26D';
+const redColor = '#FF6868';
 
 const linkStyle = {
   color: 'rgba(0,0,0,0.9)',
@@ -227,16 +229,198 @@ const Browser = () => {
     setClipboardText();
   }
 
+  const [isLoggedOn, setIsLoggedOn] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [hasClipboardPerms, setHasClipboardPerms] = useState(false);
+  const [hasUploadPerms, setHasUploadPerms] = useState(false); 
+  const [popupArray, setPopupArray] = useState([]);
+
+  const Popup = ({ id, message, onAnimationEnd }) => {
+    const [isVisible, setIsVisible] = useState(true);
+  
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+        onAnimationEnd(id); // Notify parent component that animation has ended
+      }, 3000); // 5000 milliseconds (5 seconds) for fadeOut animation
+  
+      return () => clearTimeout(timer);
+    }, [id, onAnimationEnd]);
+  
+    return (
+      isVisible && (
+        <div
+          style={{
+            position: 'fixed',
+            animation: 'fadeOut 3s forwards',
+            border: '1px solid rgba(0,0,0,0.5)',
+            borderRadius: 18,
+            height: '5%',
+            width: '25%',
+            top: '1%',
+            right: 0,
+            left: '74%',
+            zIndex: 1000,
+            backgroundColor: isLoggedOn ? greenColor : redColor, // Assuming greenColor is not used here
+            textAlign: 'center',
+            color: 'white',
+            fontSize: 36,
+            padding: '10px 0',
+            paddingTop: '15px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          {message}
+        </div>
+      )
+    );
+  };
+
+  const handleLogin = async  () => {
+    try {
+      const hashedPassword = CryptoJS.SHA256(password).toString();
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, hashedPassword })
+      });
+
+      if (!response.ok) {
+        setIsLoggedOn(false);
+        const newPopupArray = [...popupArray, { id: Date.now(), message: 'Login failed...' }];
+        setPopupArray(newPopupArray);
+        throw new Error('Login failed');
+      }
+
+      const data = await response.json();
+      setHasClipboardPerms(data.data.ClipboardAllowed);
+      setHasUploadPerms(data.data.UploadAllowed);
+      handleRefreshClick();
+      setIsLoggedOn(true);
+      const newPopupArray = [...popupArray, { id: Date.now(), message: 'Login successful!' }];
+      setPopupArray(newPopupArray);
+      // Optionally, redirect to another page or perform other actions upon successful login
+
+    } catch (error) {
+      console.error('Login error:', error.message);
+    }
+  };
+
+  const handleLogout = async () => 
+  {
+    try 
+    {
+      const response = await fetch('/api/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok)
+    {
+      throw new Error('Logout failed');
+    }
+      
+    setIsLoggedOn(false);
+    handleRefreshClick();
+    }
+    catch (error) 
+    {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  const handlePopupAnimationEnd = (popupId) => {
+    const updatedPopupArray = popupArray.filter(popup => popup.id !== popupId);
+    setPopupArray(updatedPopupArray);
+  };
+
+  const LogoutOnUnload = () => {
+    useEffect(() => {
+      const handleUnload = async () => {
+        try {
+          // Send logout request to backend
+          await axios.post('/api/logout');
+        } catch (error) {
+          console.error('Logout failed on unload:', error);
+        }
+      };
+  
+      // Attach event listener for beforeunload
+      window.addEventListener('beforeunload', handleUnload);
+  
+      // Clean up the event listener
+      return () => {
+        window.removeEventListener('beforeunload', handleUnload);
+      };
+    }, []);
+  
+    return null; // Or render nothing
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', backgroundColor: headingBackgroundColor, borderBottom: '2px solid rgba(0,0,0,0.2)', color: 'white', fontSize: 36, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <FaSpinner className="icon-spin" style={{ visibility: !isLoadingDir ? 'hidden' : undefined, marginRight: 10 }} size={20} />
-
+      <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', backgroundColor: headingBackgroundColor, borderBottom: '2px solid rgba(0,0,0,0.2)', color: 'white', fontSize: 36, padding: '10px 0', paddingLeft: '20px', display: 'flex', alignItems: 'center', justifyContent: isLoggedOn ? 'center' : 'space-between' }}>
+        {/*<FaSpinner className="icon-spin" style={{ visibility: !isLoadingDir ? 'hidden' : undefined, marginRight: 10 }} size={20} />*/}
+        <LogoutOnUnload />
         {/* eslint-disable-next-line jsx-a11y/accessible-emoji */}
         <div>EzShare 🤝</div>
+        
       </div>
 
-      <Section style={{ marginTop: 100 }}>
+      {true && (
+        <div style={{ marginTop: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {popupArray.slice(-3).map((popup) => (
+          <Popup key={popup.id} id={popup.id} message={popup.message} onAnimationEnd={handlePopupAnimationEnd} />
+        ))}
+      </div>
+      )}
+
+      <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', color: 'white', fontSize: 36, padding: '10px 0', paddingTop: '15px', display: 'flex', alignItems: 'center' }}>
+      {isLoggedOn && (<div
+          style={{
+            position: 'fixed',
+            borderRadius: 12,
+            height: '5%',
+            width: '20%',
+            top: '0%',
+            right: 0,
+            alignItems: 'center',
+            left: '79%'
+          }}>
+            <button onClick={handleLogout} style={{marginTop: 15, marginLeft: "73%", padding: 10, boxSizing: 'border-box', backgroundColor: colorLink, border: 'none', borderRadius: 6, color: 'white', fontWeight: 'bold', fontSize: 17 }}>Logout</button>
+          </div>)}
+      </div>
+
+      <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', color: 'white', fontSize: 36, padding: '10px 0', paddingTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {!isLoggedOn && (
+          <div style={{ display: 'flex', alignItems: 'center', marginRight: 15 }}>
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'center', padding: '10px 0', border: '1px solid rgba(0,0,0,0.3)', fontFamily: 'inherit', fontSize: 15, borderRadius: 6 }}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'center', padding: '10px 0', border: '1px solid rgba(0,0,0,0.3)', fontFamily: 'inherit', fontSize: 15, borderRadius: 6 }}
+            />
+            <button onClick={handleLogin} style={{ padding: 10, width: '35%', boxSizing: 'border-box', backgroundColor: colorLink, border: 'none', borderRadius: 6, color: 'white', fontWeight: 'bold', fontSize: 17 }}>Login</button>
+          </div>
+        )}
+      </div>
+
+      {isLoggedOn && hasClipboardPerms && (<Section style={{ marginTop: 100 }}>
         <h2>Clipboard</h2>
 
         <div style={{ margin: 'auto', maxWidth: 350, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', flexWrap: 'wrap' }}>
@@ -268,14 +452,14 @@ const Browser = () => {
             )}
           </AnimatePresence>
         </div>
-      </Section>
+      </Section>)}
 
-      <Section>
+      {isLoggedOn && hasUploadPerms && (<Section>
         <h2>Upload files</h2>
         <Uploader onUploadSuccess={handleUploadSuccess} />
-      </Section>
+      </Section>)}
 
-      <Section>
+      {isLoggedOn && (<Section>
         <h2>Download files</h2>
 
         <div style={{ wordBreak: 'break-all', padding: '0 5px 8px 5px', fontSize: '.85em', color: 'rgba(0,0,0,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -292,10 +476,17 @@ const Browser = () => {
 
         {dirs.map(FileRow)}
         {nonDirs.map(FileRow)}
-      </Section>
+      </Section>)}
 
       {/* eslint-disable-next-line jsx-a11y/accessible-emoji */}
+      {!isLoggedOn && (<Section>
+        <h2></h2>
+        <h2></h2>
+        <div style={{ boxShadow: '0px 0px 10px rgba(0, 0, 0, 0.75)', textAlign: 'center', marginBottom: 50, padding: 10, borderRadius: 18, fontSize: 36, border: `1px solid ${colorLink}`}}>
+          You need to log in first!
+        </div></Section>)}
       <div style={{ textAlign: 'center', marginBottom: 50 }}><a href={'https://mifi.no'} style={{ textDecoration: 'none', fontWeight: '400', color: 'black' }}>More apps by mifi.no ❤️</a></div>
+      <div style={{ textAlign: 'center', marginBottom: 50 }}>Modified by SleedC</div>
     </div>
   );
 };

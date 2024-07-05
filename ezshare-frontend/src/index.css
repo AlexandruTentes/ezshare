@@ -25,6 +25,18 @@ h1, h2, h3 {
           animation: icon-spin 2s infinite linear;
 }
 
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 @-webkit-keyframes icon-spin {
   0% {
     -webkit-transform: rotate(0deg);

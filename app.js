@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
+require('dotenv').config(); // Load environment variables from .env file if used
 const express = require('express');
 const formidable = require('formidable');
 const { join, basename } = require('path');
@@ -20,7 +21,10 @@ const filenamify = require('filenamify');
 const util = require('util');
 const stream = require('stream');
 const parseRange = require('range-parser');
+const session = require('express-session');
 
+const mysql = require('mysql2');
+const crypto = require('crypto');
 
 const pipeline = util.promisify(stream.pipeline);
 
@@ -36,6 +40,10 @@ const isPrivateIP = (ip) => {
          (parts[0] === 192 && parts[1] === 168);
 };
 
+const generateRandomSecret = () => {
+  return crypto.randomBytes(32).toString('hex'); // 32 bytes (256 bits) of random data
+};
+
 module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressionLevel, devMode }) => {
   // console.log({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressionLevel });
   const sharedPath = sharedPathIn || process.cwd();
@@ -46,12 +54,29 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
   }
 
   const app = express();
+  app.use(express.json()); // Middleware to parse JSON bodies
 
   if (debug) app.use(morgan('dev'));
 
+  const usingHttps = process.env.USING_HTTPS === 'true';
+  const sessionLifetimeInHours = parseInt(process.env.SESSION_LIFETIME_IN_HOURS, 10);
+
+  app.use(session({
+    secret: generateRandomSecret(), // Change this to a secure random key
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      secure: usingHttps, // Set to true if using HTTPS
+      maxAge: 60 * 60 * 1000 * sessionLifetimeInHours, // Session expires after 8 hour of inactivity
+    }
+  }));
+
   // NOTE: Must support non latin characters
   app.post('/api/upload', asyncHandler(async (req, res) => {
-    // console.log(req.headers)
+    if (req.session.isLoggedIn == undefinedd || !req.session.isLoggedIn)
+      return res.status(401).json({ error: 'User not logged in' });
+    if(req.session.UploadAllowed == undefined || !req.session.UploadAllowed)
+      return res.status(403).json({ error: 'Permission denied' });
 
     // parse a file upload
     const form = new formidable({
@@ -91,6 +116,11 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
 
   // NOTE: Must support non latin characters
   app.post('/api/paste', bodyParser.urlencoded({ extended: false }), asyncHandler(async (req, res) => {
+    if (req.session.isLoggedIn == undedfined || !req.session.isLoggedIn)
+      return res.status(401).json({ error: 'User not logged in' });
+    if(req.session.ClipboardAllowed == undefined || !req.session.ClipboardAllowed)
+      return res.status(403).json({ error: 'Permission denied' });
+    
     if (req.body.saveAsFile === 'true') {
       await fs.writeFile(getFilePath(`client-clipboard-${new Date().getTime()}.txt`), req.body.clipboard);
     } else {
@@ -101,6 +131,11 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
 
   // NOTE: Must support non latin characters
   app.post('/api/copy', asyncHandler(async (req, res) => {
+    if (req.session.isLoggedIn == undefined || !req.session.isLoggedIn)
+      return res.status(401).json({ error: 'User not logged in' });
+    if(req.session.ClipboardAllowed == undefined || !req.session.ClipboardAllowed)
+      return res.status(403).json({ error: 'Permission denied' });
+
     res.send(await clipboardy.read());
   }));
   
@@ -161,6 +196,9 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
   }
 
   app.get('/api/download', asyncHandler(async (req, res) => {
+    if (req.session.isLoggedIn == undefined || !req.session.isLoggedIn)
+      return res.status(401).json({ error: 'User not logged in' });
+
     const filePath = getFilePath(req.query.f);
     const forceDownload = req.query.forceDownload === 'true';
     const isDir = await isDirectory(filePath);
@@ -175,13 +213,18 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
   
 
   app.get('/api/browse', asyncHandler(async (req, res) => {
-    const curRelPath = req.query.p || '/';
-    const curAbsPath = getFilePath(curRelPath);
+    if (req.session.isLoggedIn == undefined || !req.session.isLoggedIn)
+      return res.status(401).json({ error: 'User not logged in' });
 
+    let entries = [];
+    let curRelPath = "";
+    let curAbsPath = "";
+
+    curRelPath = req.query.p || '/';
+    curAbsPath = getFilePath(curRelPath);
     let readdirEntries = await fs.readdir(curAbsPath);
     readdirEntries = readdirEntries.sort(new Intl.Collator(undefined, {numeric: true}).compare);
-
-    const entries = (await pMap(readdirEntries, async (entry) => {
+    entries = (await pMap(readdirEntries, async (entry) => {
       try {
         const fileAbsPath = join(curAbsPath, entry); // TODO what if a file called ".."
         const fileRelPath = join(curRelPath, entry);
@@ -210,6 +253,77 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
   }));
 
   console.log(`Sharing path ${sharedPath}`);
+
+  //Database
+  const connection = mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    ssl: {
+      ca: fs.readFileSync('./ca.pem') // Path to your CA certificate file
+    }
+  });
+
+  // Handle MySQL connection errors
+  connection.connect((err) => {
+    if (err) {
+      console.error('MySQL connection failed: ', err.stack);
+      return;
+    }
+    console.log('Connected to MySQL server');
+  });
+
+  // Endpoint to handle login requests
+  app.post('/api/login', (req, res) => {
+    if(req.session.isLoggedIn)
+      return res.status(400).json({ error: 'User already logged in' });
+
+    const { username, hashedPassword } = req.body;
+
+    // Query the database for credentials
+    // Use parameterized query to prevent SQL injection
+    const sql = 'SELECT * FROM Credentials WHERE username = ? AND password = ?';
+    connection.query(sql, [username, hashedPassword], (error, results, fields) => 
+    {
+      if (error) 
+      {
+        console.error('Error querying database: ', error);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+
+      if (results.length > 0) 
+      {
+        // User authenticated
+        req.session.username = username;
+        req.session.isLoggedIn = true;
+        req.session.ClipboardAllowed = results[0].ClipboardAllowed
+        req.session.UploadAllowed = results[0].UploadAllowed
+        let user_data = {};
+        user_data.ClipboardAllowed = req.session.ClipboardAllowed;
+        user_data.UploadAllowed = req.session.UploadAllowed;
+        return res.json({ success: true, message: 'Login successful', data: user_data });
+      } else {
+        // Authentication failed
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+    });
+  });
+
+  //Endpoint to handle logout
+  app.post('/api/logout', (req, res) => {
+    if(!req.session)
+      return res.status(401).json({ error: 'User not logged in' });
+
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Error destroying session:', err);
+        return res.status(500).json({ error: 'Failed to logout' });
+      }
+      // Session destroyed successfully
+      return res.json({ success: true, message: 'Logout successful' });
+    });
+  });
 
   app.listen(port, () => {
     const interfaces = os.networkInterfaces();
