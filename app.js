@@ -24,6 +24,7 @@ const parseRange = require('range-parser');
 const session = require('express-session');
 const argon2 = require('argon2');
 
+const https = require('https');
 const mysql = require('mysql2');
 const crypto = require('crypto');
 
@@ -74,6 +75,10 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
   }
 
   const app = express();
+  app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
   app.use(express.json()); // Middleware to parse JSON bodies
 
   if (debug) app.use(morgan('dev'));
@@ -299,7 +304,7 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
     if(req.session.isLoggedIn)
       return res.status(400).json({ error: 'User already logged in' });
 
-    const { hashedUsername, hashedPassword } = req.body;
+    const { username, hashedUsername, hashedPassword } = req.body;
 
     const sql_salt = 'SELECT salt FROM Credentials WHERE username = ?';
     connection.query(sql_salt, [hashedUsername], async (error, results, fields) => 
@@ -329,7 +334,8 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
           if (results.length > 0) 
           {
             // User authenticated
-            req.session.username = hashedUsername;
+            req.session.username = username;
+            req.session.hashedUsername = hashedUsername;
             req.session.isLoggedIn = true;
             req.session.ClipboardAllowed = results[0].ClipboardAllowed;
             req.session.UploadAllowed = results[0].UploadAllowed;
@@ -352,9 +358,23 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
     });
   });
 
+  //Endpoint to handle session recovery
+  app.get('/api/sessionRecovery', (req, res) => {
+    if (req.session.isLoggedIn == undefined || !req.session.isLoggedIn)
+      return res.status(401).json({ error: 'User not logged in' });
+
+    let user_data = {};
+    user_data.username = req.session.username;
+    user_data.isLoggedIn = req.session.isLoggedIn;
+    user_data.ClipboardAllowed = req.session.ClipboardAllowed;
+    user_data.UploadAllowed = req.session.UploadAllowed;
+    user_data.RegisterAllowed = req.session.RegisterAllowed
+    return res.json({ success: true, message: 'Session recovery successful!', data: user_data });
+  });
+
   //Endpoint to handle logout
   app.post('/api/logout', (req, res) => {
-    if(!req.session)
+    if (req.session.isLoggedIn == undefined || !req.session.isLoggedIn)
       return res.status(401).json({ error: 'User not logged in' });
 
     req.session.destroy((err) => {
@@ -381,7 +401,7 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
     console.log(hashedPassword, salt);
     const hashHashedPassword = await hash(hashedPassword, salt);
     console.log(hashHashedPassword);
-    const values = [hashedUsername, hashHashedPassword, registerEmail, registerClipboardPerm, registerUploadPerm, salt];
+    const values = [hashedUsername, hashHashedPassword, registerEmail, registerClipboardPerm == true, registerUploadPerm == true, salt];
     // Execute the query
     connection.query(sql, values, (error, results, fields) => {
       if (error) {
@@ -398,10 +418,10 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
 
   //Endpoint to change account password
   app.post('/api/changePassword', (req, res) => {
-    if(!req.session)
+    if (req.session.isLoggedIn == undefined || !req.session.isLoggedIn)
       return res.status(401).json({ error: 'User not logged in' });
     const { newUsername, newPassword } = req.body;
-    const hashedUsername = req.session.username;
+    const hashedUsername = req.session.hashedUsername;
 
     const sql_salt = 'SELECT salt FROM Credentials WHERE username = ?';
     connection.query(sql_salt, [hashedUsername], async (error, results, fields) => 

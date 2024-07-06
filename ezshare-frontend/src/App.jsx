@@ -166,6 +166,37 @@ const Browser = () => {
   const isLoadingDir = currentPath !== currentDirFiles.curRelPath;
   const isInRootDir = currentPath === rootPath;
 
+  const [isLoggedOn, setIsLoggedOn] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [registerUsername, setRegisterUsername] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [RERegisterPassword, setRERegisterPassword] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerClipboardPerm, setRegisterClipboardPerm] = useState('');
+  const [registerUploadPerm, setRegisterUploadPerm] = useState('');
+  const [changePassword, setChangePassword] = useState('');
+  const [REChangePassword, setREChangePassword] = useState('');
+  const [hasClipboardPerms, setHasClipboardPerms] = useState(false);
+  const [hasUploadPerms, setHasUploadPerms] = useState(false); 
+  const [isChangePassword, setIsChangePassword] = useState(false); 
+  const [isRegister, setIsRegister] = useState(false); 
+  const [popupArray, setPopupArray] = useState([]);
+  const [isValid, setIsValid] = useState({
+    length: false,
+    uppercase: false,
+    number: false,
+    specialChar: false,
+    match: false
+  });
+  const [isRegValid, setIsRegValid] = useState({
+    length: false,
+    uppercase: false,
+    number: false,
+    specialChar: false,
+    match: false
+  });
+
   const loadCurrentPath = useCallback(async () => {
     try {
       const response = await axios.get('/api/browse', { params: { p: currentPath} });
@@ -174,6 +205,28 @@ const Browser = () => {
       console.error(err);
     }
   }, [currentPath]);
+
+  useEffect(() => {
+    const fetchSessionData = async () => {
+      try {
+        const response = await fetch('/api/sessionRecovery');
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        setIsLoggedOn(data.data.isLoggedIn);
+        setUsername(data.data.username);
+        setHasClipboardPerms(data.data.ClipboardAllowedd);
+        setHasUploadPerms(data.data.UploadAllowed);
+        setIsRegister(data.data.RegisterAllowed);
+        localStorage.setItem('username', username);
+        handleRefreshClick();
+      } catch (err) {
+
+      }
+    };
+    fetchSessionData();
+  }, []);
 
   useEffect(() => {
     loadCurrentPath();
@@ -230,36 +283,6 @@ const Browser = () => {
     setClipboardText();
   }
 
-  const [isLoggedOn, setIsLoggedOn] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [registerUsername, setRegisterUsername] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
-  const [RERegisterPassword, setRERegisterPassword] = useState('');
-  const [registerEmail, setRegisterEmail] = useState('');
-  const [registerClipboardPerm, setRegisterClipboardPerm] = useState('');
-  const [registerUploadPerm, setRegisterUploadPerm] = useState('');
-  const [changePassword, setChangePassword] = useState('');
-  const [REChangePassword, setREChangePassword] = useState('');
-  const [hasClipboardPerms, setHasClipboardPerms] = useState(false);
-  const [hasUploadPerms, setHasUploadPerms] = useState(false); 
-  const [isChangePassword, setIsChangePassword] = useState(false); 
-  const [isRegister, setIsRegister] = useState(false); 
-  const [popupArray, setPopupArray] = useState([]);
-  const [isValid, setIsValid] = useState({
-    length: false,
-    uppercase: false,
-    number: false,
-    specialChar: false,
-    match: false
-  });
-  const [isRegValid, setIsRegValid] = useState({
-    length: false,
-    uppercase: false,
-    number: false,
-    specialChar: false,
-    match: false
-  });
 
   const Popup = ({ id, message, onAnimationEnd, isError = false }) => {
     const [isVisible, setIsVisible] = useState(true);
@@ -384,7 +407,7 @@ const Browser = () => {
       return undefined;
     }
 
-    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*()_+={}\[\]:;"'<>,.?\\/])[A-Za-z\d!@#$%^&*()_+={}\[\]:;"'<>,.?\\/]{12,}$/;
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])[A-Za-z\d!@#$%^&*()_+=[\]{};':"\\|,.<>/?`~\-]{12,}$/;
     if (!passwordRegex.test(registerPassword)) {
       // Password does not meet criteria
       const newPopupArray = [...popupArray, { id: Date.now(), message: 'Requirements not met!', isError: true }];
@@ -429,7 +452,7 @@ const Browser = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ hashedUsername, hashedPassword })
+        body: JSON.stringify({ username, hashedUsername, hashedPassword })
       });
 
       if (!response.ok) {
@@ -496,7 +519,7 @@ const Browser = () => {
       return undefined;
     }
 
-    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*()_+={}\[\]:;"'<>,.?\\/])[A-Za-z\d!@#$%^&*()_+={}\[\]:;"'<>,.?\\/]{12,}$/;
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])[A-Za-z\d!@#$%^&*()_+=[\]{};':"\\|,.<>/?`~\-]{12,}$/;
     if (!passwordRegex.test(changePassword)) {
       // Password does not meet criteria
       const newPopupArray = [...popupArray, { id: Date.now(), message: 'Requirements not met!', isError: true }];
@@ -536,34 +559,11 @@ const Browser = () => {
     setPopupArray(updatedPopupArray);
   };
 
-  const LogoutOnUnload = () => {
-    useEffect(() => {
-      const handleUnload = async () => {
-        try {
-          // Send logout request to backend
-          await axios.post('/api/logout');
-        } catch (error) {
-          console.error('Logout failed on unload:', error);
-        }
-      };
-  
-      // Attach event listener for beforeunload
-      window.addEventListener('beforeunload', handleUnload);
-  
-      // Clean up the event listener
-      return () => {
-        window.removeEventListener('beforeunload', handleUnload);
-      };
-    }, []);
-  
-    return null; // Or render nothing
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div className="pulsing-header-div" style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', backgroundColor: headingBackgroundColor, borderBottom: '2px solid rgba(0,0,0,0.2)', color: 'white', fontSize: 36, padding: '10px 0', paddingLeft: '20px', display: 'flex', alignItems: 'center', justifyContent: isLoggedOn ? !isChangePassword ? 'center' : 'space-between' : 'space-between' }}>
         {/*<FaSpinner className="icon-spin" style={{ visibility: !isLoadingDir ? 'hidden' : undefined, marginRight: 10 }} size={20} />*/}
-        <LogoutOnUnload />
+        
         {/* eslint-disable-next-line jsx-a11y/accessible-emoji */}
         <div>EzShare 🤝</div>
         
@@ -577,6 +577,7 @@ const Browser = () => {
       </div>
       )}
 
+      <div style={{ display: isRegister ? 'block' : 'none' }}>
       {isRegister && (<div>
         <h2></h2>
         <div>
@@ -622,14 +623,16 @@ const Browser = () => {
             <button onClick={handleRegister} style={{ padding: 10, width: '55%', boxSizing: 'border-box', backgroundColor: colorLink, border: 'none', borderRadius: 6, color: 'white', fontWeight: 'bold', fontSize: 17 }}>Register</button>
         </div>
       </div>)}
+      </div>
 
+      <div style={{ display: isRegister ? 'block' : 'none' }}>
       {isRegister && (
         <div>
           <h2></h2>
           <div style={{
             fontSize: 32
             }}>
-            Register password requirements:
+            Password register requirements:
           </div>
           <ul style={{
             fontSize: 24,
@@ -642,7 +645,9 @@ const Browser = () => {
           </ul>
         </div>
       )}
+      </div>
 
+      <div style={{ display: isChangePassword ? 'block' : 'none' }}>
       {isChangePassword && (
         <div>
           <h2></h2>
@@ -662,7 +667,9 @@ const Browser = () => {
           </ul>
         </div>
       )}
+      </div>
 
+      <div style={{ display: isLoggedOn ? 'block' : 'none' }}>
       {isLoggedOn  && (
         <div style={{
           position: 'fixed',
@@ -705,7 +712,9 @@ const Browser = () => {
             }}>Logout</button>
         </div>
       )}
+      </div>
 
+      <div style={{ display: !isLoggedOn ? 'block' : 'none' }}>
       <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', color: 'white', fontSize: 36, padding: '10px 0', paddingTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {!isLoggedOn && (
           <div style={{ display: 'flex', alignItems: 'center', marginRight: 15 }}>
@@ -727,7 +736,9 @@ const Browser = () => {
           </div>
         )}
       </div>
+      </div>
 
+      <div style={{ display: isChangePassword ? 'block' : 'none' }}>
       {isChangePassword && (
         <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', color: 'white', fontSize: 36, padding: '10px 0', paddingTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginRight: 15 }}>
@@ -748,7 +759,9 @@ const Browser = () => {
             <button onClick={handleChangePassword} style={{ padding: 10, width: '35%', boxSizing: 'border-box', backgroundColor: colorLink, border: 'none', borderRadius: 6, color: 'white', fontWeight: 'bold', fontSize: 17 }}>Change</button>
           </div>
           </div>)}
+          </div>
     
+      <div style={{ display: isLoggedOn && hasClipboardPerms ? 'block' : 'none' }}>
       {isLoggedOn && hasClipboardPerms && (<Section style={{ marginTop: 100 }}>
         <h2>Clipboard</h2>
 
@@ -782,12 +795,16 @@ const Browser = () => {
           </AnimatePresence>
         </div>
       </Section>)}
+      </div>
 
+      <div style={{ display: isLoggedOn && hasUploadPerms ? 'block' : 'none' }}>
       {isLoggedOn && hasUploadPerms && (<Section>
         <h2>Upload files</h2>
         <Uploader onUploadSuccess={handleUploadSuccess} />
       </Section>)}
+      </div>
 
+      <div style={{ display: isLoggedOn ? 'block' : 'none' }}>
       {isLoggedOn && (<Section>
         <h2>Download files</h2>
 
@@ -806,16 +823,17 @@ const Browser = () => {
         {dirs.map(FileRow)}
         {nonDirs.map(FileRow)}
       </Section>)}
+      </div>
 
       {/* eslint-disable-next-line jsx-a11y/accessible-emoji */}
+      <div style={{ display: !isLoggedOn ? 'block' : 'none' }}>
       {!isLoggedOn && (<Section>
         <h2></h2>
         <h2></h2>
         <div className="pulsing-orange-div" style={{ animation: 'pulse-orange 3s ease-in-out infinite', boxShadow: '0px 0px 10px rgba(0, 0, 0, 0.75)', textAlign: 'center', marginBottom: 50, padding: 10, borderRadius: 18, fontSize: 36, border: `1px solid ${colorLink}`}}>
           You need to log in first!
         </div></Section>)}
-      <div style={{ textAlign: 'center', marginBottom: 50 }}><a href={'https://mifi.no'} style={{ textDecoration: 'none', fontWeight: '400', color: 'black' }}>More apps by mifi.no ❤️</a></div>
-      <div style={{ textAlign: 'center', marginBottom: 50 }}>Modified by SleedC</div>
+        </div>
     </div>
   );
 };
