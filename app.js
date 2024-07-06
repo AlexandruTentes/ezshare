@@ -22,6 +22,7 @@ const util = require('util');
 const stream = require('stream');
 const parseRange = require('range-parser');
 const session = require('express-session');
+const argon2 = require('argon2');
 
 const mysql = require('mysql2');
 const crypto = require('crypto');
@@ -38,6 +39,25 @@ const isPrivateIP = (ip) => {
   return (parts[0] === 10) ||
          (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
          (parts[0] === 192 && parts[1] === 168);
+};
+
+const generateSalt = (length = 16) => {
+  return crypto.randomBytes(length).toString('hex');
+};
+
+const hash = async (data, salt) =>
+{
+  try {
+    const hashedPsd = await argon2.hash(data, {
+      salt: Buffer.from(salt, 'hex'),
+      type: argon2.argon2d // Use argon2.argon2d for Argon2d type
+    });
+    const h = hashedPsd.split('$');
+      return h[h.length - 1];
+  } catch (error) {
+    console.error("Error when hashing the password:", error);
+    return undefined;
+  }
 };
 
 const generateRandomSecret = () => {
@@ -116,7 +136,7 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
 
   // NOTE: Must support non latin characters
   app.post('/api/paste', bodyParser.urlencoded({ extended: false }), asyncHandler(async (req, res) => {
-    if (req.session.isLoggedIn == undedfined || !req.session.isLoggedIn)
+    if (req.session.isLoggedIn == undefined || !req.session.isLoggedIn)
       return res.status(401).json({ error: 'User not logged in' });
     if(req.session.ClipboardAllowed == undefined || !req.session.ClipboardAllowed)
       return res.status(403).json({ error: 'Permission denied' });
@@ -275,16 +295,14 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
   });
 
   // Endpoint to handle login requests
-  app.post('/api/login', (req, res) => {
+  app.post('/api/login', async (req, res) => {
     if(req.session.isLoggedIn)
       return res.status(400).json({ error: 'User already logged in' });
 
-    const { username, hashedPassword } = req.body;
+    const { hashedUsername, hashedPassword } = req.body;
 
-    // Query the database for credentials
-    // Use parameterized query to prevent SQL injection
-    const sql = 'SELECT * FROM Credentials WHERE username = ? AND password = ?';
-    connection.query(sql, [username, hashedPassword], (error, results, fields) => 
+    const sql_salt = 'SELECT salt FROM Credentials WHERE username = ?';
+    connection.query(sql_salt, [hashedUsername], async (error, results, fields) => 
     {
       if (error) 
       {
@@ -294,16 +312,40 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
 
       if (results.length > 0) 
       {
-        // User authenticated
-        req.session.username = username;
-        req.session.isLoggedIn = true;
-        req.session.ClipboardAllowed = results[0].ClipboardAllowed
-        req.session.UploadAllowed = results[0].UploadAllowed
-        let user_data = {};
-        user_data.ClipboardAllowed = req.session.ClipboardAllowed;
-        user_data.UploadAllowed = req.session.UploadAllowed;
-        return res.json({ success: true, message: 'Login successful', data: user_data });
-      } else {
+        let salt = results[0].salt;
+        const hashHashedPassword = await hash(hashedPassword, salt);
+    
+        // Query the database for credentials
+        // Use parameterized query to prevent SQL injection
+        const sql = 'SELECT * FROM Credentials WHERE username = ? AND password = ?';
+        connection.query(sql, [hashedUsername, hashHashedPassword], (error, results, fields) => 
+        {
+          if (error) 
+          {
+            console.error('Error querying database: ', error);
+            return res.status(500).json({ error: 'Internal server error' });
+          }
+    
+          if (results.length > 0) 
+          {
+            // User authenticated
+            req.session.username = hashedUsername;
+            req.session.isLoggedIn = true;
+            req.session.ClipboardAllowed = results[0].ClipboardAllowed;
+            req.session.UploadAllowed = results[0].UploadAllowed;
+            req.session.RegisterAllowed = results[0].RegisterAllowed;
+            let user_data = {};
+            user_data.ClipboardAllowed = req.session.ClipboardAllowed;
+            user_data.UploadAllowed = req.session.UploadAllowed;
+            user_data.RegisterAllowed = req.session.RegisterAllowed
+            return res.json({ success: true, message: 'Login successful', data: user_data });
+          } else {
+            // Authentication failed
+            return res.status(401).json({ error: 'Invalid credentials' });
+          }
+        });
+      }
+      else {
         // Authentication failed
         return res.status(401).json({ error: 'Invalid credentials' });
       }
@@ -322,6 +364,74 @@ module.exports = ({ sharedPath: sharedPathIn, port, maxUploadSize, zipCompressio
       }
       // Session destroyed successfully
       return res.json({ success: true, message: 'Logout successful' });
+    });
+  });
+
+  //Endpoint to register new accounts
+  app.post('/api/register', async (req, res) => {
+    if (req.session.isLoggedIn == undefined || !req.session.isLoggedIn)
+      return res.status(401).json({ error: 'User not logged in' });
+    if(req.session.RegisterAllowed == undefined || !req.session.RegisterAllowed)
+      return res.status(403).json({ error: 'Permission denied' });
+
+    const { hashedUsername, hashedPassword, registerEmail, registerClipboardPerm, registerUploadPerm } = req.body;
+  
+    const sql = `INSERT INTO Credentials (username, password, email, ClipboardAllowed, UploadAllowed, salt) VALUES (?, ?, ?, ?, ?, ?)`;
+    const salt = generateSalt();
+    console.log(hashedPassword, salt);
+    const hashHashedPassword = await hash(hashedPassword, salt);
+    console.log(hashHashedPassword);
+    const values = [hashedUsername, hashHashedPassword, registerEmail, registerClipboardPerm, registerUploadPerm, salt];
+    // Execute the query
+    connection.query(sql, values, (error, results, fields) => {
+      if (error) {
+        console.error('Error inserting user:', error);
+        // Handle error
+        return res.status(500).json({ error: 'Failed to register user' });
+      };
+
+      // User successfully registered
+      console.log('User registered successfully:', results.insertId); // insertId gives you the inserted row's ID
+      return res.json({ success: true, message: 'User registered successfully' });
+    });
+  });
+
+  //Endpoint to change account password
+  app.post('/api/changePassword', (req, res) => {
+    if(!req.session)
+      return res.status(401).json({ error: 'User not logged in' });
+    const { newUsername, newPassword } = req.body;
+    const hashedUsername = req.session.username;
+
+    const sql_salt = 'SELECT salt FROM Credentials WHERE username = ?';
+    connection.query(sql_salt, [hashedUsername], async (error, results, fields) => 
+    {
+      if (error) 
+      {
+        console.error('Error querying database: ', error);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+
+      if (results.length > 0) 
+      {
+        let salt = results[0].salt;
+        // Hash the new password using SHA-256
+        const hashHashedPassword = await hash(newPassword, salt);
+
+        // Update the password in the database
+        const sql = 'UPDATE Credentials SET username = ?, password = ? WHERE username = ?';
+        connection.query(sql, [newUsername, hashHashedPassword, hashedUsername], (err, result) => {
+          if (err) {
+            console.error('Error updating password:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+          }
+          return res.json({ success: true });
+        });
+      }
+      else {
+        // Authentication failed
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
     });
   });
 

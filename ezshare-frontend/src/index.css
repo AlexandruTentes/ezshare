@@ -37,6 +37,95 @@ h1, h2, h3 {
   }
 }
 
+@keyframes pulse-blue {
+  0% {
+    box-shadow: 0 0 0 0 rgba(52, 152, 219, 1.0);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(52, 152, 219, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 152, 219, 0);
+  }
+}
+
+@keyframes pulse-orange {
+  0% {
+    box-shadow: 0 0 0 0 rgba(219, 100, 0, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(52, 152, 219, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 152, 219, 0);
+  }
+}
+
+@keyframes pulse-header {
+  0% {
+    box-shadow: 0 0 0 0 rgba(77, 134, 148, 1.0);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(52, 152, 219, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 152, 219, 0);
+  }
+}
+
+@keyframes rotate {
+  to {
+    border-width: 2px;
+    border-style: dashed;
+    border-color: #3498db;
+    transform: rotate(360deg);
+  }
+}
+
+.pulsing-orange-div {
+  position: relative; /* Ensure the div is positioned */
+}
+
+.pulsing-orange-div::before {
+  content: ''; /* Required for pseudo-elements */
+  position: absolute; /* Position relative to .pulsing-div */
+  top: 10px; /* Adjust to position the shadow */
+  left: 10px; /* Adjust to position the shadow */
+  right: 10px; /* Adjust to position the shadow */
+  bottom: 10px; /* Adjust to position the shadow */
+  border-radius: 10px; /* Inherit the div's border radius */
+  animation: pulse-orange 3s ease-in-out infinite; /* Apply the pulse animation */
+}
+
+.pulsing-blue-div {
+  position: relative; /* Ensure the div is positioned */
+}
+
+.pulsing-blue-div::before {
+  content: ''; /* Required for pseudo-elements */
+  position: absolute; /* Position relative to .pulsing-div */
+  top: 10px; /* Adjust to position the shadow */
+  left: 10px; /* Adjust to position the shadow */
+  right: 10px; /* Adjust to position the shadow */
+  bottom: 10px; /* Adjust to position the shadow */
+  border-radius: 10px; /* Inherit the div's border radius */
+  animation: pulse-blue 1s ease-in-out infinite; /* Apply the pulse animation */
+}
+
+.pulsing-header-div {
+  position: relative; /* Ensure the div is positioned */
+}
+
+.pulsing-header-div::before {
+  content: ''; /* Required for pseudo-elements */
+  position: absolute; /* Position relative to .pulsing-div */
+  top: 10px; /* Adjust to position the shadow */
+  left: 10px; /* Adjust to position the shadow */
+  right: 10px; /* Adjust to position the shadow */
+  bottom: 10px; /* Adjust to position the shadow */
+  animation: pulse-header 3s ease-in-out infinite; /* Apply the pulse animation */
+}
+
 @-webkit-keyframes icon-spin {
   0% {
     -webkit-transform: rotate(0deg);

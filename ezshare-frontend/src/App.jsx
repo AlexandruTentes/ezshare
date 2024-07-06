@@ -11,6 +11,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CryptoJS from 'crypto-js';
 import { CircularProgressbar } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
+import argon2 from "argon2-browser/dist/argon2-bundled.min.js";
+import seedrandom from 'seedrandom';
+import { Buffer } from 'buffer';
 
 const Toast = Swal.mixin({
   toast: true,
@@ -192,8 +195,6 @@ const Browser = () => {
     dirs = currentDirFiles.files.filter(f => f.isDir);
     nonDirs = currentDirFiles.files.filter(f => !f.isDir);
   }
-  
-
 
   async function onPaste(e) {
     e.preventDefault();
@@ -232,11 +233,35 @@ const Browser = () => {
   const [isLoggedOn, setIsLoggedOn] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [registerUsername, setRegisterUsername] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [RERegisterPassword, setRERegisterPassword] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerClipboardPerm, setRegisterClipboardPerm] = useState('');
+  const [registerUploadPerm, setRegisterUploadPerm] = useState('');
+  const [changePassword, setChangePassword] = useState('');
+  const [REChangePassword, setREChangePassword] = useState('');
   const [hasClipboardPerms, setHasClipboardPerms] = useState(false);
   const [hasUploadPerms, setHasUploadPerms] = useState(false); 
+  const [isChangePassword, setIsChangePassword] = useState(false); 
+  const [isRegister, setIsRegister] = useState(false); 
   const [popupArray, setPopupArray] = useState([]);
+  const [isValid, setIsValid] = useState({
+    length: false,
+    uppercase: false,
+    number: false,
+    specialChar: false,
+    match: false
+  });
+  const [isRegValid, setIsRegValid] = useState({
+    length: false,
+    uppercase: false,
+    number: false,
+    specialChar: false,
+    match: false
+  });
 
-  const Popup = ({ id, message, onAnimationEnd }) => {
+  const Popup = ({ id, message, onAnimationEnd, isError = false }) => {
     const [isVisible, setIsVisible] = useState(true);
   
     useEffect(() => {
@@ -247,7 +272,7 @@ const Browser = () => {
   
       return () => clearTimeout(timer);
     }, [id, onAnimationEnd]);
-  
+ 
     return (
       isVisible && (
         <div
@@ -262,10 +287,10 @@ const Browser = () => {
             right: 0,
             left: '74%',
             zIndex: 1000,
-            backgroundColor: isLoggedOn ? greenColor : redColor, // Assuming greenColor is not used here
+            backgroundColor: isError ? redColor : greenColor, // Assuming greenColor is not used here
             textAlign: 'center',
             color: 'white',
-            fontSize: 36,
+            fontSize: 28,
             padding: '10px 0',
             paddingTop: '15px',
             display: 'flex',
@@ -279,30 +304,149 @@ const Browser = () => {
     );
   };
 
+  const checkPasswordCriteria = (pssd, repssd) => {
+    setIsValid({
+      length: pssd.length >= 12,
+      uppercase: /[A-Z]/.test(pssd),
+      number: /\d/.test(pssd),
+      specialChar: /[!@#\-,.]/.test(pssd),
+      match: pssd == repssd
+    });
+  };
+
+  const checkPasswordRegisterCriteria = (pssd, repssd) => {
+    setIsRegValid({
+      length: pssd.length >= 12,
+      uppercase: /[A-Z]/.test(pssd),
+      number: /\d/.test(pssd),
+      specialChar: /[!@#\-,.]/.test(pssd),
+      match: pssd == repssd
+    });
+  };
+
+  // Call checkPasswordCriteria whenever password changes
+  React.useEffect(() => {
+    checkPasswordCriteria(changePassword, REChangePassword);
+  }, [changePassword, REChangePassword]);
+  React.useEffect(() => {
+    checkPasswordRegisterCriteria(registerPassword, RERegisterPassword);
+  }, [registerPassword, RERegisterPassword]);
+
+  const generateSalt = (usr) => {
+    return usr;
+  };
+
+  const hashPassword = async (pswd, usr) =>
+  {
+    try
+    {
+      const hash = await argon2.hash({
+        pass: pswd,
+        salt: generateSalt(usr),
+        type: argon2.ArgonType.Argon2d,
+      });
+      const h = hash.encoded.split('$');
+      return h[h.length - 1];
+    }
+    catch (error) 
+    {
+      console.log("Error when hashing the password... ", error);
+      return undefined;
+    }
+  };
+
+  const hashUsername = async (usr, pswd) =>
+  {
+    try
+    {
+      const hash = await argon2.hash({
+        pass: usr,
+        salt: generateSalt(pswd),
+        type: argon2.ArgonType.Argon2d,
+      });
+      const h = hash.encoded.split('$');
+      return h[h.length - 1];
+    }
+    catch (error) 
+    {
+      console.log("Error when hashing the username... ", error);
+      return undefined;
+    }
+  };
+
+  const handleRegister = async  () => {
+
+
+    if(registerPassword != RERegisterPassword)
+    {
+      const newPopupArray = [...popupArray, { id: Date.now(), message: 'Passwords do not match!', isError: true }];
+      setPopupArray(newPopupArray);
+      return undefined;
+    }
+
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*()_+={}\[\]:;"'<>,.?\\/])[A-Za-z\d!@#$%^&*()_+={}\[\]:;"'<>,.?\\/]{12,}$/;
+    if (!passwordRegex.test(registerPassword)) {
+      // Password does not meet criteria
+      const newPopupArray = [...popupArray, { id: Date.now(), message: 'Requirements not met!', isError: true }];
+      setPopupArray(newPopupArray);
+      return undefined;
+    }
+
+    try {
+        const hashedUsername = await hashUsername(registerUsername, registerUsername + registerUsername);
+        const hashedPassword = await hashPassword(registerPassword, hashedUsername);
+        
+        const response = await fetch('/api/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ hashedUsername, hashedPassword, registerEmail, registerClipboardPerm, registerUploadPerm })
+        });
+
+        if (!response.ok) {
+          const newPopupArray = [...popupArray, { id: Date.now(), message: 'Register failed...', isError: true }];
+          setPopupArray(newPopupArray);
+          throw new Error('Register failed');
+        }
+
+        const newPopupArray = [...popupArray, { id: Date.now(), message: 'Register successful!', isError: false }];
+        setPopupArray(newPopupArray);
+    }catch (error) {
+      const newPopupArray = [...popupArray, { id: Date.now(), message: 'Register failed...', isError: true }];
+        setPopupArray(newPopupArray);
+      console.error('Register error:', error.message);
+    }
+  };
+
   const handleLogin = async  () => {
     try {
-      const hashedPassword = CryptoJS.SHA256(password).toString();
+      const hashedUsername = await hashUsername(username, username + username);
+      const hashedPassword = await hashPassword(password, hashedUsername);
+      
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ username, hashedPassword })
+        body: JSON.stringify({ hashedUsername, hashedPassword })
       });
 
       if (!response.ok) {
         setIsLoggedOn(false);
-        const newPopupArray = [...popupArray, { id: Date.now(), message: 'Login failed...' }];
+        const newPopupArray = [...popupArray, { id: Date.now(), message: 'Login failed...', isError: true }];
         setPopupArray(newPopupArray);
         throw new Error('Login failed');
       }
 
+      localStorage.setItem('username', username);
       const data = await response.json();
       setHasClipboardPerms(data.data.ClipboardAllowed);
       setHasUploadPerms(data.data.UploadAllowed);
+      setIsRegister(data.data.RegisterAllowed);
       handleRefreshClick();
       setIsLoggedOn(true);
-      const newPopupArray = [...popupArray, { id: Date.now(), message: 'Login successful!' }];
+      const newPopupArray = [...popupArray, { id: Date.now(), message: 'Login successful!', isError: false }];
       setPopupArray(newPopupArray);
       // Optionally, redirect to another page or perform other actions upon successful login
 
@@ -328,11 +472,62 @@ const Browser = () => {
     }
       
     setIsLoggedOn(false);
+    setIsChangePassword(false);
+    setIsRegister(false);
     handleRefreshClick();
     }
     catch (error) 
     {
       console.error('Logout failed:', error);
+    }
+  };
+
+  const handleInitiateChangePassword = () => 
+  {
+    setIsChangePassword(!isChangePassword);
+  };
+
+  const handleChangePassword = async () => 
+  {
+    if(changePassword != REChangePassword)
+    {
+      const newPopupArray = [...popupArray, { id: Date.now(), message: 'Passwords do not match!', isError: true }];
+      setPopupArray(newPopupArray);
+      return undefined;
+    }
+
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*()_+={}\[\]:;"'<>,.?\\/])[A-Za-z\d!@#$%^&*()_+={}\[\]:;"'<>,.?\\/]{12,}$/;
+    if (!passwordRegex.test(changePassword)) {
+      // Password does not meet criteria
+      const newPopupArray = [...popupArray, { id: Date.now(), message: 'Requirements not met!', isError: true }];
+      setPopupArray(newPopupArray);
+      return undefined;
+    }
+    
+    try {
+      const localUsername = localStorage.getItem('username');
+      const hashedUsername = await hashUsername(localUsername, localUsername + localUsername);
+      const hashedPassword = await hashPassword(changePassword, hashedUsername);
+
+      const response = await axios.post('/api/changePassword', {
+        newUsername: hashedUsername, newPassword: hashedPassword
+      });
+      if (response.data.success) {
+        // Password changed successfully
+        const newPopupArray = [...popupArray, { id: Date.now(), message: 'Password changed successfully!', isError: false }];
+        setPopupArray(newPopupArray);
+        setChangePassword('');
+        setREChangePassword('');
+        setIsChangePassword(false);
+      } else {
+        // Handle error
+        const newPopupArray = [...popupArray, { id: Date.now(), message: 'Password change failed!', isError: true }];
+        setPopupArray(newPopupArray);
+      }
+    } catch (error) {
+      console.error('Error changing password:', error.message);
+      const newPopupArray = [...popupArray, { id: Date.now(), message: 'Password change failed!', isError: true }];
+      setPopupArray(newPopupArray);
     }
   };
 
@@ -366,7 +561,7 @@ const Browser = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', backgroundColor: headingBackgroundColor, borderBottom: '2px solid rgba(0,0,0,0.2)', color: 'white', fontSize: 36, padding: '10px 0', paddingLeft: '20px', display: 'flex', alignItems: 'center', justifyContent: isLoggedOn ? 'center' : 'space-between' }}>
+      <div className="pulsing-header-div" style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', backgroundColor: headingBackgroundColor, borderBottom: '2px solid rgba(0,0,0,0.2)', color: 'white', fontSize: 36, padding: '10px 0', paddingLeft: '20px', display: 'flex', alignItems: 'center', justifyContent: isLoggedOn ? !isChangePassword ? 'center' : 'space-between' : 'space-between' }}>
         {/*<FaSpinner className="icon-spin" style={{ visibility: !isLoadingDir ? 'hidden' : undefined, marginRight: 10 }} size={20} />*/}
         <LogoutOnUnload />
         {/* eslint-disable-next-line jsx-a11y/accessible-emoji */}
@@ -377,26 +572,139 @@ const Browser = () => {
       {true && (
         <div style={{ marginTop: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {popupArray.slice(-3).map((popup) => (
-          <Popup key={popup.id} id={popup.id} message={popup.message} onAnimationEnd={handlePopupAnimationEnd} />
+          <Popup key={popup.id} id={popup.id} message={popup.message} isError={popup.isError} onAnimationEnd={handlePopupAnimationEnd} />
         ))}
       </div>
       )}
 
-      <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', color: 'white', fontSize: 36, padding: '10px 0', paddingTop: '15px', display: 'flex', alignItems: 'center' }}>
-      {isLoggedOn && (<div
-          style={{
-            position: 'fixed',
-            borderRadius: 12,
-            height: '5%',
-            width: '20%',
-            top: '0%',
-            right: 0,
-            alignItems: 'center',
-            left: '79%'
-          }}>
-            <button onClick={handleLogout} style={{marginTop: 15, marginLeft: "73%", padding: 10, boxSizing: 'border-box', backgroundColor: colorLink, border: 'none', borderRadius: 6, color: 'white', fontWeight: 'bold', fontSize: 17 }}>Logout</button>
-          </div>)}
-      </div>
+      {isRegister && (<div>
+        <h2></h2>
+        <div>
+          Register:
+          <input
+              type="text"
+              placeholder="Username"
+              value={registerUsername}
+              onChange={(e) => setRegisterUsername(e.target.value)}
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'center', padding: '10px 0', border: '1px solid rgba(0,0,0,0.3)', fontFamily: 'inherit', fontSize: 15, borderRadius: 6 }}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={registerPassword}
+              onChange={(e) => setRegisterPassword(e.target.value)}
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'center', padding: '10px 0', border: '1px solid rgba(0,0,0,0.3)', fontFamily: 'inherit', fontSize: 15, borderRadius: 6 }}
+            />
+            <input
+              type="password"
+              placeholder="Retype pass"
+              value={RERegisterPassword}
+              onChange={(e) => setRERegisterPassword(e.target.value)}
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'center', padding: '10px 0', border: '1px solid rgba(0,0,0,0.3)', fontFamily: 'inherit', fontSize: 15, borderRadius: 6 }}
+            />
+            <input
+              type="text"
+              placeholder="email"
+              value={registerEmail}
+              onChange={(e) => setRegisterEmail(e.target.value)}
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'center', padding: '10px 0', border: '1px solid rgba(0,0,0,0.3)', fontFamily: 'inherit', fontSize: 15, borderRadius: 6 }}
+            />
+            <input
+              type="checkbox"
+              checked={registerClipboardPerm}
+              onChange={(e) => setRegisterClipboardPerm(e.target.checked)}
+            />
+            <input
+              type="checkbox"
+              checked={registerUploadPerm}
+              onChange={(e) => setRegisterUploadPerm(e.target.checked)}
+            />
+            <button onClick={handleRegister} style={{ padding: 10, width: '55%', boxSizing: 'border-box', backgroundColor: colorLink, border: 'none', borderRadius: 6, color: 'white', fontWeight: 'bold', fontSize: 17 }}>Register</button>
+        </div>
+      </div>)}
+
+      {isRegister && (
+        <div>
+          <h2></h2>
+          <div style={{
+            fontSize: 32
+            }}>
+            Register password requirements:
+          </div>
+          <ul style={{
+            fontSize: 24,
+            }}>
+             <li style={{ color: isRegValid.length ? 'green' : 'red' }}>At least 12 characters;</li>
+             <li style={{ color: isRegValid.uppercase ? 'green' : 'red' }}>At least one character uppercase;</li>
+             <li style={{ color: isRegValid.number ? 'green' : 'red' }}>At least one number;</li>
+             <li style={{ color: isRegValid.specialChar ? 'green' : 'red' }}>At least one special character (!@#-,.);</li>
+             <li style={{ color: isRegValid.match ? 'green' : 'red' }}>Passwords must match;</li>
+          </ul>
+        </div>
+      )}
+
+      {isChangePassword && (
+        <div>
+          <h2></h2>
+          <div style={{
+            fontSize: 32
+            }}>
+            Password change requirements:
+          </div>
+          <ul style={{
+            fontSize: 24,
+            }}>
+             <li style={{ color: isValid.length ? 'green' : 'red' }}>At least 12 characters;</li>
+             <li style={{ color: isValid.uppercase ? 'green' : 'red' }}>At least one character uppercase;</li>
+             <li style={{ color: isValid.number ? 'green' : 'red' }}>At least one number;</li>
+             <li style={{ color: isValid.specialChar ? 'green' : 'red' }}>At least one special character (!@#-,.);</li>
+             <li style={{ color: isValid.match ? 'green' : 'red' }}>Passwords must match;</li>
+          </ul>
+        </div>
+      )}
+
+      {isLoggedOn  && (
+        <div style={{
+          position: 'fixed',
+          borderRadius: 12,
+          height: '4.5%',
+          width: '20%',
+          top: '0%',
+          right: "1%",
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          //backgroundColor: 'rgba(0, 0, 0, 0.5)', // Example background color for visibility
+          padding: '5px', // Adjust padding for clickable area
+          zIndex: 900
+        }}>
+          <button onClick={handleInitiateChangePassword}
+            style={{
+              padding: '10px', // Increase padding for larger clickable area
+              backgroundColor: !isChangePassword ? '#4ea3df': '#34b9db',
+              border: 'none',
+              borderRadius: 6,
+              color: 'white',
+              fontWeight: 'bold',
+              fontSize: 17,
+              cursor: 'pointer', // Ensure cursor changes on hover
+              marginLeft: '10px', // Adjust margin between buttons
+              animation: isChangePassword ? 'pulse-blue 1s infinite' : 'none', // Apply animation conditionally
+            }}>Change</button>
+          <button onClick={handleLogout}
+            style={{
+              padding: '10px', // Increase padding for larger clickable area
+              backgroundColor: '#e74c3c',
+              border: 'none',
+              borderRadius: 6,
+              color: 'white',
+              fontWeight: 'bold',
+              fontSize: 17,
+              cursor: 'pointer', // Ensure cursor changes on hover
+              marginLeft: '10px', // Adjust margin between buttons
+            }}>Logout</button>
+        </div>
+      )}
 
       <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', color: 'white', fontSize: 36, padding: '10px 0', paddingTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {!isLoggedOn && (
@@ -420,6 +728,27 @@ const Browser = () => {
         )}
       </div>
 
+      {isChangePassword && (
+        <div style={{ position: 'fixed', top: 0, right: 0, left: 0, textAlign: 'center', color: 'white', fontSize: 36, padding: '10px 0', paddingTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginRight: 15 }}>
+            <input
+              type="password"
+              placeholder="Password"
+              value={changePassword}
+              onChange={(e) => setChangePassword(e.target.value)}
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'center', padding: '10px 0', border: '1px solid rgba(0,0,0,0.3)', fontFamily: 'inherit', fontSize: 15, borderRadius: 6 }}
+            />
+            <input
+              type="password"
+              placeholder="Retype password"
+              value={REChangePassword}
+              onChange={(e) => setREChangePassword(e.target.value)}
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'center', padding: '10px 0', border: '1px solid rgba(0,0,0,0.3)', fontFamily: 'inherit', fontSize: 15, borderRadius: 6 }}
+            />
+            <button onClick={handleChangePassword} style={{ padding: 10, width: '35%', boxSizing: 'border-box', backgroundColor: colorLink, border: 'none', borderRadius: 6, color: 'white', fontWeight: 'bold', fontSize: 17 }}>Change</button>
+          </div>
+          </div>)}
+    
       {isLoggedOn && hasClipboardPerms && (<Section style={{ marginTop: 100 }}>
         <h2>Clipboard</h2>
 
@@ -482,7 +811,7 @@ const Browser = () => {
       {!isLoggedOn && (<Section>
         <h2></h2>
         <h2></h2>
-        <div style={{ boxShadow: '0px 0px 10px rgba(0, 0, 0, 0.75)', textAlign: 'center', marginBottom: 50, padding: 10, borderRadius: 18, fontSize: 36, border: `1px solid ${colorLink}`}}>
+        <div className="pulsing-orange-div" style={{ animation: 'pulse-orange 3s ease-in-out infinite', boxShadow: '0px 0px 10px rgba(0, 0, 0, 0.75)', textAlign: 'center', marginBottom: 50, padding: 10, borderRadius: 18, fontSize: 36, border: `1px solid ${colorLink}`}}>
           You need to log in first!
         </div></Section>)}
       <div style={{ textAlign: 'center', marginBottom: 50 }}><a href={'https://mifi.no'} style={{ textDecoration: 'none', fontWeight: '400', color: 'black' }}>More apps by mifi.no ❤️</a></div>

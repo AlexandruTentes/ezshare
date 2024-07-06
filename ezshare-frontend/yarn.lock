@@ -537,6 +537,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@phc/format@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "@phc/format@npm:1.0.0"
+  checksum: 10c0/56cec2687ac3767298f77b2202c0d6f282878c1375948b01da16e03475dc293628847d33150469a793d55095700dce65ac1760ada271deeab15bd0c6d1ceb306
+  languageName: node
+  linkType: hard
+
 "@pkgjs/parseargs@npm:^0.11.0":
   version: 0.11.0
   resolution: "@pkgjs/parseargs@npm:0.11.0"
@@ -813,6 +820,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"argon2-browser@npm:^1.18.0":
+  version: 1.18.0
+  resolution: "argon2-browser@npm:1.18.0"
+  checksum: 10c0/da58d39e6fd2be58cf0f7ee3fe6e3d88bfdf4c923f00ae0cce9d9431ea8661b8bc1c62326e7cf6b33872e2f3e8d1bb0816842f8e05d97141b859351fd5a80ca4
+  languageName: node
+  linkType: hard
+
+"argon2@npm:^0.40.3":
+  version: 0.40.3
+  resolution: "argon2@npm:0.40.3"
+  dependencies:
+    "@phc/format": "npm:^1.0.0"
+    node-addon-api: "npm:^8.0.0"
+    node-gyp: "npm:latest"
+    node-gyp-build: "npm:^4.8.0"
+  checksum: 10c0/994cf1ae5625aeb5ec2d0e0de67f2cf64b8723e0cc8f3cca844b99b00f57e8ad5cc6eb43b2287c9bd0fb9bd15d147e9341327115a447a6208c47ca7cc78705f5
+  languageName: node
+  linkType: hard
+
 "asynckit@npm:^0.4.0":
   version: 0.4.0
   resolution: "asynckit@npm:0.4.0"
@@ -845,6 +871,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"base64-js@npm:^1.3.1":
+  version: 1.5.1
+  resolution: "base64-js@npm:1.5.1"
+  checksum: 10c0/f23823513b63173a001030fae4f2dabe283b99a9d324ade3ad3d148e218134676f1ee8568c877cd79ec1c53158dcf2d2ba527a97c606618928ba99dd930102bf
+  languageName: node
+  linkType: hard
+
 "brace-expansion@npm:^2.0.1":
   version: 2.0.1
   resolution: "brace-expansion@npm:2.0.1"
@@ -865,6 +898,16 @@ __metadata:
   bin:
     browserslist: cli.js
   checksum: 10c0/eb47c7ab9d60db25ce2faca70efeb278faa7282a2f62b7f2fa2f92e5f5251cf65144244566c86559419ff4f6d78f59ea50e39911321ad91f3b27788901f1f5e9
+  languageName: node
+  linkType: hard
+
+"buffer@npm:^6.0.3":
+  version: 6.0.3
+  resolution: "buffer@npm:6.0.3"
+  dependencies:
+    base64-js: "npm:^1.3.1"
+    ieee754: "npm:^1.2.1"
+  checksum: 10c0/2a905fbbcde73cc5d8bd18d1caa23715d5f83a5935867c2329f0ac06104204ba7947be098fe1317fbd8830e26090ff8e764f08cd14fefc977bb248c3487bcbd0
   languageName: node
   linkType: hard
 
@@ -1187,7 +1230,10 @@ __metadata:
   resolution: "ezshare-frontend@workspace:."
   dependencies:
     "@vitejs/plugin-react": "npm:^4.2.1"
+    argon2: "npm:^0.40.3"
+    argon2-browser: "npm:^1.18.0"
     axios: "npm:^0.28.0"
+    buffer: "npm:^6.0.3"
     crypto-js: "npm:^4.2.0"
     fontsource-roboto: "npm:^3.0.3"
     framer-motion: "npm:^1.10.3"
@@ -1199,8 +1245,10 @@ __metadata:
     react-icons: "npm:^3.9.0"
     react-router: "npm:^5.1.2"
     react-router-dom: "npm:^5.1.2"
+    seedrandom: "npm:^3.0.5"
     sweetalert2: "npm:^9.10.6"
-    vite: "npm:^5.1.7"
+    vite: "npm:^5.3.3"
+    vite-plugin-wasm: "npm:^3.3.0"
   languageName: unknown
   linkType: soft
 
@@ -1436,6 +1484,13 @@ __metadata:
   dependencies:
     safer-buffer: "npm:>= 2.1.2 < 3.0.0"
   checksum: 10c0/98102bc66b33fcf5ac044099d1257ba0b7ad5e3ccd3221f34dd508ab4070edff183276221684e1e0555b145fce0850c9f7d2b60a9fcac50fbb4ea0d6e845a3b1
+  languageName: node
+  linkType: hard
+
+"ieee754@npm:^1.2.1":
+  version: 1.2.1
+  resolution: "ieee754@npm:1.2.1"
+  checksum: 10c0/b0782ef5e0935b9f12883a2e2aa37baa75da6e66ce6515c168697b42160807d9330de9a32ec1ed73149aea02e0d822e572bca6f1e22bdcbd2149e13b050b17bb
   languageName: node
   linkType: hard
 
@@ -1728,6 +1783,26 @@ __metadata:
   version: 0.6.3
   resolution: "negotiator@npm:0.6.3"
   checksum: 10c0/3ec9fd413e7bf071c937ae60d572bc67155262068ed522cf4b3be5edbe6ddf67d095ec03a3a14ebf8fc8e95f8e1d61be4869db0dbb0de696f6b837358bd43fc2
+  languageName: node
+  linkType: hard
+
+"node-addon-api@npm:^8.0.0":
+  version: 8.0.0
+  resolution: "node-addon-api@npm:8.0.0"
+  dependencies:
+    node-gyp: "npm:latest"
+  checksum: 10c0/20eb231362cc07c62d9839164473744d985be5d82685214f3750d990d9f61ef366e0ba112a766c925d640ed29b2a500b83568e895dc2444dcd5db01e615aac2b
+  languageName: node
+  linkType: hard
+
+"node-gyp-build@npm:^4.8.0":
+  version: 4.8.1
+  resolution: "node-gyp-build@npm:4.8.1"
+  bin:
+    node-gyp-build: bin.js
+    node-gyp-build-optional: optional.js
+    node-gyp-build-test: build-test.js
+  checksum: 10c0/e36ca3d2adf2b9cca316695d7687207c19ac6ed326d6d7c68d7112cebe0de4f82d6733dff139132539fcc01cf5761f6c9082a21864ab9172edf84282bc849ce7
   languageName: node
   linkType: hard
 
@@ -2115,6 +2190,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"seedrandom@npm:^3.0.5":
+  version: 3.0.5
+  resolution: "seedrandom@npm:3.0.5"
+  checksum: 10c0/929752ac098ff4990b3f8e0ac39136534916e72879d6eb625230141d20db26e2f44c4d03d153d457682e8cbaab0fb7d58a1e7267a157cf23fd8cf34e25044e88
+  languageName: node
+  linkType: hard
+
 "select@npm:^1.1.2":
   version: 1.1.2
   resolution: "select@npm:1.1.2"
@@ -2388,7 +2470,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:^5.1.7":
+"vite-plugin-wasm@npm:^3.3.0":
+  version: 3.3.0
+  resolution: "vite-plugin-wasm@npm:3.3.0"
+  peerDependencies:
+    vite: ^2 || ^3 || ^4 || ^5
+  checksum: 10c0/382ba2f2ffef31dde717ad43a69427bc930a6e2ec453d17b700ef7937b48996893a61657fdee3122654e027b1933341548493b35e6469520a8d4ae6c522d1ee2
+  languageName: node
+  linkType: hard
+
+"vite@npm:^5.3.3":
   version: 5.3.3
   resolution: "vite@npm:5.3.3"
   dependencies:
